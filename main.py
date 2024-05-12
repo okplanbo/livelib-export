@@ -1,6 +1,18 @@
-import requests
+from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import time
+import csv
+
+options = webdriver.ChromeOptions()
+options.add_argument('--disable-extensions')
+options.add_argument('--profile-directory=Default')
+options.add_argument('--incognito')
+options.add_argument('--disable-plugins-discovery')
+options.add_argument('--start-maximized')
+options.add_argument('--headless')
+
+driver = webdriver.Chrome(options=options)
 
 DOMAIN = 'https://www.livelib.ru'
 BASE_USER_URL = DOMAIN + '/reader/'
@@ -16,11 +28,12 @@ wish_books = []
 reading_books = []
 
 def get_page(url, current_page):
-    page = requests.get(url)
+    driver.get(url)
+    time.sleep(3)
     if (current_page):
         print('getting page %s' % current_page)
-    print('status code %s' % page.status_code)
-    return BeautifulSoup(page.text, 'html.parser')
+    # print('status code %s' % driver.page_source.status_code)
+    return BeautifulSoup(driver.page_source, 'html.parser')
 
 
 def get_book_list(page_type):
@@ -39,13 +52,12 @@ def get_book_list(page_type):
             rating_span = book_container.find("span", class_="brow-rating marg-right")  # noqa: E501
             if (rating_span):
                 rating_value = rating_span.find("span", class_="rating-value").text  # noqa: E501
-                book["rating"] = rating_value
+                book["rating"] = round(float(rating_value)) if rating_value else None
             result_dict_list.append(book)
 
         has_more = bool(soup.find("div", class_="pagination-more-left"))
 
         if (has_more):
-            time.sleep(2)
             current_page += 1
 
     return result_dict_list
@@ -70,3 +82,44 @@ print('')
 
 # Then add ISBN and book titles from book info pages
 
+
+def get_book_info(book_list):
+    for book in book_list:
+        soup = get_page(DOMAIN + book['url'], None)
+        isbn = soup.find("meta", property="book:isbn")
+        title = soup.find("meta", property="og:title")
+        book['isbn'] = isbn["content"].replace("-", "") if isbn else None
+        book['title'] = title["content"] if title else None
+
+
+print('getting ISBN and book titles, please wait')
+get_book_info(read_books)
+get_book_info(wish_books)
+get_book_info(reading_books)
+
+# Let's compile the final book list out of 3 lists. We will add shelves
+# for 'Goodreads' as categories in process
+
+fieldnames = ['title', 'isbn', 'rating', 'url', 'shelves']
+final_list = []
+
+for book in read_books:
+    book["shelves"] = "Read"
+    final_list.append(book)
+
+for book in wish_books:
+    book["shelves"] = "to-read-0"
+    final_list.append(book)
+
+for book in reading_books:
+    book["shelves"] = "now-reading-0"
+    final_list.append(book)
+
+# And finally save everything to csv file
+
+with open('livelib-export.csv', 'w', newline='', encoding="utf-8") as f:
+    writer = csv.DictWriter(f, fieldnames, delimiter=';')
+    writer.writeheader()
+    writer.writerows(final_list)
+
+print('All done!')
