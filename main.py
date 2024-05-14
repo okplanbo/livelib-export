@@ -104,15 +104,15 @@ fieldnames = ['title', 'isbn', 'rating', 'url', 'shelves']
 final_list = []
 
 for book in read_books:
-    book["shelves"] = "Read"
+    book["shelves"] = "read"
     final_list.append(book)
 
 for book in wish_books:
-    book["shelves"] = "to-read-0"
+    book["shelves"] = "to-read"
     final_list.append(book)
 
 for book in reading_books:
-    book["shelves"] = "now-reading-0"
+    book["shelves"] = "currently-reading"
     final_list.append(book)
 
 # And finally save everything to csv file
